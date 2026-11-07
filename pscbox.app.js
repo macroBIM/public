@@ -21,7 +21,7 @@
 (function () {
   'use strict';
   var API = 'rebar_api.php';
-  var stage, layer;
+  var stage, layer, barLayer, animTimer = null;
 
   function el(id) { return document.getElementById(id); }
   function setStatus(msg, bad) { var s = el('status'); s.textContent = msg; s.className = bad ? 'badge err' : 'badge'; }
@@ -31,7 +31,9 @@
     var host = el('stage2d');
     stage = new Konva.Stage({ container: 'stage2d', width: host.clientWidth || 600, height: 360 });
     layer = new Konva.Layer();
+    barLayer = new Konva.Layer();
     stage.add(layer);
+    stage.add(barLayer);
     window.addEventListener('resize', function () {
       if (!stage) return;
       stage.width(host.clientWidth || 600);
@@ -61,16 +63,23 @@
   function polyPoints(pts, T) { var a = []; pts.forEach(function (p) { var q = T(p); a.push(q[0], q[1]); }); return a; }
 
   // ── 그리기 ─────────────────────────────────────────────────────────────
+  function stopAnim() { if (animTimer) { clearInterval(animTimer); animTimer = null; } }
+
   function draw(data) {
     window._last = data;
+    stopAnim();
     layer.destroyChildren();
+    barLayer.destroyChildren();
     var sec = data.section || {};
     var all = [];
     (sec.outer || []).forEach(function (p) { all.push(p); });
     (sec.openings || []).forEach(function (op) { op.forEach(function (p) { all.push(p); }); });
     (data.bars2d || []).forEach(function (b) { (b.pts || []).forEach(function (p) { all.push(p); }); });
-    if (!all.length) { layer.draw(); return; }
+    // 애니메이션 프레임의 점도 포함해 뷰가 재생 중 흔들리지 않게
+    (data.anim || []).forEach(function (a) { (a.frames || []).forEach(function (fr) { fr.forEach(function (s) { all.push([s[0], s[1]]); all.push([s[2], s[3]]); }); }); });
+    if (!all.length) { layer.draw(); barLayer.draw(); return; }
     var T = fitView(all);
+    window._T = T;
 
     // 콘크리트 외곽
     if (sec.outer) layer.add(new Konva.Line({ points: polyPoints(sec.outer, T), stroke: '#0f172a', strokeWidth: 2, closed: true }));
@@ -91,11 +100,48 @@
         layer.add(new Konva.Line({ points: polyPoints(d.pts, T), stroke: '#cbd5e1', strokeWidth: 1, closed: true }));
       }
     });
-    // 철근
-    (data.bars2d || []).forEach(function (b) {
-      layer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#f97316', strokeWidth: 1.6, lineJoin: 'round' }));
-    });
     layer.draw();
+
+    // 철근 — 프레임이 있으면 settle 애니메이션, 없으면 최종만
+    if (data.anim && data.anim.length) playAnim(data, T);
+    else { drawBarsFinal(data.bars2d || [], T); barLayer.draw(); }
+  }
+
+  //  최종 철근(이어진 선)을 그린다
+  function drawBarsFinal(bars2d, T) {
+    bars2d.forEach(function (b) {
+      barLayer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#f97316', strokeWidth: 1.8, lineJoin: 'round' }));
+    });
+  }
+
+  //  settle 프레임 재생 — 바마다 start(스태거) 뒤 frames 를 차례로, 끝나면 최종 선.
+  function playAnim(data, T) {
+    var anim = data.anim, finalById = {};
+    (data.bars2d || []).forEach(function (b) { finalById[b.id] = b; });
+    var maxTick = 0;
+    anim.forEach(function (a) { maxTick = Math.max(maxTick, (a.start || 0) + (a.frames || []).length); });
+    var tick = 0;
+    function render() {
+      barLayer.destroyChildren();
+      anim.forEach(function (a) {
+        var start = a.start || 0, frames = a.frames || [], local = tick - start;
+        if (local < 0) return;                       // 아직 차례 전
+        if (local < frames.length) {                 // settle 중 — 세그먼트별 선
+          frames[local].forEach(function (s) {
+            var p1 = T([s[0], s[1]]), p2 = T([s[2], s[3]]);
+            barLayer.add(new Konva.Line({ points: [p1[0], p1[1], p2[0], p2[1]], stroke: '#fb923c', strokeWidth: 1.6, lineCap: 'round' }));
+          });
+        } else {                                     // 안착 — 최종 이어진 선
+          var b = finalById[a.id];
+          if (b) barLayer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#f97316', strokeWidth: 1.8, lineJoin: 'round' }));
+        }
+      });
+      barLayer.draw();
+      tick++;
+      if (tick > maxTick + 2) { stopAnim(); }
+    }
+    render();
+    animTimer = setInterval(render, 45);
   }
 
   // ── 표 · 로그 ───────────────────────────────────────────────────────────
@@ -125,7 +171,8 @@
         var n = (data.bars2d || []).length;
         var msg;
         if (data.stub) msg = '샘플/stub — 엔진 미배포';
-        else if (data.engine === 'section') msg = '단면 OK (서버 엔진) — 철근 배치는 포팅 중';
+        else if (data.engine === 'section' && n) msg = '완료 — 철근 ' + n + ' 가닥 (서버 settle)';
+        else if (data.engine === 'section') msg = '단면 OK (서버 엔진) — trebar 행을 넣으면 철근 애니메이션';
         else msg = '완료 — 철근 ' + n + ' 가닥';
         setStatus(msg);
       })
