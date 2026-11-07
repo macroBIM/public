@@ -123,7 +123,11 @@
         fillTable((data.section || {}).dims);
         fillLog(data.log);
         var n = (data.bars2d || []).length;
-        setStatus('완료 — 철근 ' + n + ' 가닥' + (data.stub ? ' (샘플/stub)' : ''));
+        var msg;
+        if (data.stub) msg = '샘플/stub — 엔진 미배포';
+        else if (data.engine === 'section') msg = '단면 OK (서버 엔진) — 철근 배치는 포팅 중';
+        else msg = '완료 — 철근 ' + n + ' 가닥';
+        setStatus(msg);
       })
       .catch(function (e) { setStatus('서버 연결 실패: ' + e.message, true); });
   }
