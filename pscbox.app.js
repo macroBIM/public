@@ -140,15 +140,20 @@
       '        </div>' +
       '      </div>' +
       '      <div class="px-split">' +
-      '        <div class="px-guide" style="flex:1 1 0;min-width:0;">' +
-      '          <div id="stage2d"></div>' +
-      '          <div id="elevWrap" style="display:none;margin-top:10px;"><div style="font-size:12px;color:#64748b;margin:2px 0 4px;">교축방향 폐합철근 (입면)</div><div id="stage_elev"></div></div>' +
-      '        </div>' +
-      '        <div class="px-tblwrap" style="max-height:680px;">' +
+      '        <div class="px-guide" id="box12cell_guide" style="flex:1 1 0;min-width:0;"></div>' +
+      '        <div class="px-tblwrap" id="box12cell_vartable" style="max-height:680px;">' +
       '          <table class="px-tbl dim-tbl"><thead><tr><th>Dimension</th><th>Value / Formula</th><th class="px-symh" title="Check to enter the right side independently">&#8646;</th><th>Dimension</th><th>Value / Formula</th></tr></thead>' +
       '          <tbody>' + dimRowsHTML() + '</tbody></table>' +
       '        </div>' +
       '      </div>' +
+      '    </div>' +
+      '  </div>' +
+
+      '  <div class="draw-card">' +
+      '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR LAYOUT</span> <span class="draw-card-desc">단면 · 철근을 서버(숨은 엔진)에서 계산해 그린다 — 그림만 받는다</span></div></div>' +
+      '    <div class="draw-card-body">' +
+      '      <div id="stage2d"></div>' +
+      '      <div id="elevWrap" style="display:none;margin-top:10px;"><div style="font-size:12px;color:#64748b;margin:2px 0 4px;">교축방향 폐합철근 (입면)</div><div id="stage_elev"></div></div>' +
       '    </div>' +
       '  </div>' +
 
@@ -292,6 +297,7 @@
         _busy = false;
         if (!data || !data.ok) { setStatus((data && data.error) || '계산 실패', true); return; }
         draw(data);
+        drawGuide(data);
         fillLog(data.log);
         var nb = (data.bars2d || []).length, nl = (data.lbars2d || []).length, nh = (data.hoops || []).length, nm = (data.mesh2d || []).length;
         setStatus('완료 — trebar ' + nb + ' · lrebar ' + nl + ' · 폐합 ' + nh + ' · 면철근망 ' + nm + (data.stub ? ' (stub)' : ''));
@@ -299,6 +305,16 @@
       .catch(function (e) { _busy = false; setStatus('서버 연결 실패: ' + e.message, true); });
   }
   function fillLog(lines) { var p = el('pxLoadLog'); if (p) p.innerHTML = (lines || []).map(function (l) { return '<div>' + esc(l) + '</div>'; }).join(''); }
+
+  //  치수선 가이드 — 서버가 준 기하(geo)+치수(ap)로 공개 drawer(pscDrawGuide)가 그린다.
+  function drawGuide(data) {
+    var host = el('box12cell_guide'); if (!host) return;
+    if (typeof window.pscDrawGuide !== 'function' || !data.geo || !data.ap) {
+      if (!host.innerHTML) host.innerHTML = '<div style="padding:16px;color:#94a3b8;font-size:12px;">가이드 도면 로딩 중…</div>';
+      return;
+    }
+    try { window.pscDrawGuide('box12cell_guide', data.ap, data.geo); } catch (e) { /* 가이드 실패는 치명적 아님 */ }
+  }
 
   // ── 엑셀 읽기 ─────────────────────────────────────────────────────────────
   function onFile(file) {
