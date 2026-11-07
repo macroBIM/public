@@ -1,0 +1,68 @@
+/*  pscbox diaphragm page — 공개 껍데기 스타일.
+ *  design/layout_style.css 의 토큰을 그대로 따른다 (Inter · #2563eb · 흰 카드 · #1e293b 머리줄).
+ *  이 파일은 공개다 — 중요한 것은 서버(PHP)에 있다.
+ */
+:root{
+  --bg:#f0f2f5; --card:#fff; --line:#e2e8f0; --ink:#0f172a; --text:#444;
+  --muted:#94a3b8; --sub:#64748b; --blue:#2563eb; --blue-bg:#eff6ff;
+  --head:#1e293b; --panel:#f1f5f9; --panel2:#f8fafc;
+}
+*{box-sizing:border-box;}
+body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);font-size:14px;margin:0;padding:24px;}
+.wrap{max-width:1200px;margin:0 auto;background:var(--card);border-radius:12px;
+  box-shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);padding:24px;}
+
+.page-heading{font-size:22px;font-weight:700;color:var(--ink);margin:0 0 4px;}
+.breadcrumb{font-size:13px;color:var(--muted);margin-bottom:24px;}
+.breadcrumb a{color:var(--muted);text-decoration:none;}
+.breadcrumb a:hover{color:var(--blue);}
+.breadcrumb span{color:var(--sub);}
+
+/* control bar */
+.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:20px;}
+.controls label{font-weight:600;color:var(--ink);}
+.controls input[type=text]{border:1px solid var(--line);border-radius:7px;padding:7px 10px;
+  font-size:14px;width:150px;}
+.btn{border:none;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-ghost{background:#fff;color:var(--sub);border:1px solid var(--line);}
+.btn-ghost:hover{background:var(--panel);}
+
+/* section cards (card = draw / table block) */
+.card{background:var(--card);border-radius:10px;border:1px solid var(--line);
+  margin-bottom:20px;overflow:hidden;}
+.card-header{display:flex;justify-content:space-between;align-items:center;
+  padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel);}
+.card-title{font-weight:700;color:var(--ink);display:flex;align-items:center;}
+.card-title::before{content:'';display:inline-block;width:4px;height:15px;border-radius:2px;
+  background:var(--blue);margin-right:9px;flex-shrink:0;}
+.card-sub{font-size:12px;color:var(--muted);padding:2px 16px 0;}
+.card-body{padding:16px;}
+
+/* dimension row: drawing left, table right */
+.dim-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;}
+@media(max-width:860px){.dim-grid{grid-template-columns:1fr;}}
+.viewer{position:relative;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;min-height:360px;overflow:hidden;}
+#stage2d{width:100%;height:360px;}
+.viewer .regen{position:absolute;top:10px;right:10px;}
+
+.opts{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:14px;}
+.opt{display:flex;align-items:center;gap:8px;}
+.opt input[type=number]{border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:92px;}
+
+table.kv{width:100%;border-collapse:collapse;font-size:13px;}
+table.kv th{background:var(--head);color:#fff;font-weight:600;padding:9px 12px;text-align:left;}
+table.kv td{border-bottom:1px solid var(--line);padding:8px 12px;}
+table.kv td:first-child{font-weight:700;color:var(--ink);background:var(--panel2);width:40%;}
+
+/* log */
+.log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--sub);
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;
+  max-height:160px;overflow:auto;white-space:pre-wrap;display:none;}
+.badge{font-size:11px;color:var(--muted);}
+.err{color:#b91c1c;}
