@@ -84,15 +84,14 @@
         '<td><input type="text" spellcheck="false" class="form-input" id="' + it.r + '_s" value="' + esc(defByKey[it.l]) + '" disabled onchange="PXDIA.redraw()"></td></tr>';
     }).join('');
   }
-  function openingCardHTML() {
+  //  Opening 입력칸 (오른쪽 열 — 치수표 아래) : shape·B·H·코너컷·위치
+  function openingInputsHTML() {
     function orow(k, label, hint, v) {
       return '<div class="op-row"><span>' + label + (hint ? ' <i>' + hint + '</i>' : '') + '</span>' +
         '<input type="text" spellcheck="false" id="op1_' + k + '" value="' + v + '" onchange="PXDIA.redraw()"></div>';
     }
     var opts = OP_SHAPES.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === OPEN_DEF.shape ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
-    var cell = '<div class="op-cell" id="opCell1">' +
-      '<h4>Opening <label><input type="checkbox" id="op1_none" onchange="PXDIA.redraw()"> none</label></h4>' +
-      '<div class="op-body"><div class="op-fields">' +
+    return '<div class="op-fields">' +
       '<div class="op-row"><span>Shape</span><select id="op1_shape" onchange="PXDIA.redraw()">' + opts + '</select></div>' +
       orow('B', 'B', 'width', OPEN_DEF.B) + orow('H', 'H', 'height at centre', OPEN_DEF.H) +
       '<div class="op-sub">Corner cut</div>' +
@@ -100,13 +99,21 @@
       orow('CTBX', 'Ctbx', '', OPEN_DEF.CTBX) + orow('CTBY', 'Ctby', '', OPEN_DEF.CTBY) +
       '<div class="op-sub">Position</div>' +
       orow('X', 'X', 'from centre', OPEN_DEF.X) + orow('Y', 'Y', 'from slab top', OPEN_DEF.Y) +
-      '</div></div></div>';
-    return '  <div class="draw-card">' +
-      '    <div class="draw-card-header"><div><span class="draw-card-title">OPENING</span> ' +
-      '<span class="draw-card-desc">One opening per cell &mdash; 2 Cell puts it in both at &#8723;X from the centre. Rectangle / Hexagon / Octagon by how far the corners are cut (top &amp; bottom given separately). Y from the top of the bottom slab.</span></div></div>' +
-      '    <div class="draw-card-body"><div class="op-wrap">' + cell +
-      '    </div></div>' +
-      '  </div>';
+      '</div>';
+  }
+  //  Dimension 카드 안에 들어갈 Opening 섹션 : 제목+고려 체크박스 → (체크 시) 그림(좌)+입력(우)
+  function openingSectionHTML() {
+    return '      <div style="margin-top:16px;border-top:1px dashed var(--hair,#e2e8f0);padding-top:12px;">' +
+      '        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+      '          <span class="draw-card-title">OPENING</span>' +
+      '          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;font-weight:500;"><input type="checkbox" id="opConsider" checked onchange="PXDIA.onOpConsider()"> 고려 (consider)</label>' +
+      '          <span class="draw-card-desc" style="margin:0;">셀당 하나 · 2 Cell 은 중심에서 &#8723;X 로 양쪽에. RECT/HEX/OCT · Y 는 하부슬래브 상단 기준.</span>' +
+      '        </div>' +
+      '        <div id="openingBody" class="px-split" style="margin-top:10px;">' +
+      '          <div class="px-guide" style="flex:1 1 0;min-width:0;"><div id="stage_open" style="width:100%;height:300px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;"></div></div>' +
+      '          <div class="px-tblwrap" style="flex:1 1 0;min-width:0;max-height:420px;padding:10px 14px;">' + openingInputsHTML() + '</div>' +
+      '        </div>' +
+      '      </div>';
   }
   function mountHTML() {
     return '<div class="px-root">' +
@@ -143,6 +150,7 @@
       '          <tbody>' + dimRowsHTML() + '</tbody></table>' +
       '        </div>' +
       '      </div>' +
+      openingSectionHTML() +
       '    </div>' +
       '  </div>' +
 
@@ -153,8 +161,6 @@
       '      <div id="elevWrap" style="display:none;margin-top:10px;"><div style="font-size:12px;color:#64748b;margin:2px 0 4px;">교축방향 폐합철근 (입면)</div><div id="stage_elev"></div></div>' +
       '    </div>' +
       '  </div>' +
-
-      openingCardHTML() +
 
       '  <div class="draw-card">' +
       '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR</span> <span class="draw-card-desc">trebar / lrebar / crebar / srebar &mdash; [Load Excel] 로 입력</span></div></div>' +
@@ -210,6 +216,11 @@
       this.redraw();
     },
     onCellType: function () { this.redraw(); },
+    onOpConsider: function () {
+      var c = el('opConsider'), body = el('openingBody');
+      if (body) body.style.display = (c && c.checked) ? '' : 'none';
+      this.redraw();
+    },
     onSymLeft: function (lk, rk) {
       var cb = el('asym_' + rk); if (cb && cb.checked) return;
       var li = el(lk + '_s'), ri = el(rk + '_s'); if (li && ri) ri.value = li.value;
@@ -232,8 +243,8 @@
     ADEFS.forEach(function (d) { rows.push(['dim', d[0], val(d[0] + '_s')]); });
     rows.push(['cover', val('cover_deck_s'), val('cover_ext_s'), val('cover_int_s')]);
     rows.push(['diathk', val('diaThk_s')]);
-    var none = el('op1_none');
-    if (none && none.checked) rows.push(['open', 'none']);
+    var consider = el('opConsider');
+    if (consider && !consider.checked) rows.push(['open', 'none']);   // 고려 안 함 → 개구부 없음
     else rows.push(['open', val('op1_shape'), val('op1_B'), val('op1_H'), val('op1_CTTX'), val('op1_CTTY'), val('op1_CTBX'), val('op1_CTBY'), val('op1_X'), val('op1_Y')]);
     // 불러온 엑셀의 철근·덕트 행만 통과 (치수/커버/개구부는 화면 입력이 기준)
     (_excelData || []).forEach(function (r) {
@@ -264,10 +275,10 @@
         var e2 = el('diaThk_s'); if (e2) e2.value = cellAt(r, hc + 1);
       } else if (kind === 'open') {
         var sv = cellAt(r, hc + 1).toLowerCase();
-        var noneEl = el('op1_none');
-        if (sv === 'none' || sv === '-') { if (noneEl) noneEl.checked = true; }
+        var consEl = el('opConsider');
+        if (sv === 'none' || sv === '-') { if (consEl) consEl.checked = false; }
         else {
-          if (noneEl) noneEl.checked = false;
+          if (consEl) consEl.checked = true;
           var shapeMap = { rect: 'RECT', rectangle: 'RECT', hex: 'HEX', hexagon: 'HEX', oct: 'OCT', octagon: 'OCT' };
           var at = hc + 1;
           if (/^\d+$/.test(cellAt(r, at)) && cellAt(r, at) !== '') at++;   // 옛 형식의 셀 번호 건너뛰기
@@ -281,6 +292,9 @@
     DIM_LAYOUT.forEach(function (it) {
       if (it.t === 'sym') { var cb = el('asym_' + it.r); var li = el(it.l + '_s'), ri = el(it.r + '_s'); if (li && ri && !(cb && cb.checked)) ri.value = li.value; }
     });
+    // 엑셀이 정한 개구부 고려 여부에 맞춰 OPENING 본문 펼침/접기 동기화
+    var oc = el('opConsider'), ob = el('openingBody');
+    if (ob) ob.style.display = (oc && oc.checked) ? '' : 'none';
   }
 
   // ── 서버 호출 ──────────────────────────────────────────────────────────────
@@ -295,6 +309,7 @@
         if (!data || !data.ok) { setStatus((data && data.error) || '계산 실패', true); return; }
         draw(data);
         drawGuide(data);
+        drawOpening(data);
         fillLog(data.log);
         var nb = (data.bars2d || []).length, nl = (data.lbars2d || []).length, nh = (data.hoops || []).length, nm = (data.mesh2d || []).length;
         setStatus('완료 — trebar ' + nb + ' · lrebar ' + nl + ' · 폐합 ' + nh + ' · 면철근망 ' + nm + (data.stub ? ' (stub)' : ''));
@@ -338,13 +353,36 @@
     stage.add(layer); stage.add(barLayer);
     var ehost = el('stage_elev');
     if (ehost) { elevStage = new Konva.Stage({ container: 'stage_elev', width: host.clientWidth || 600, height: 220 }); elevLayer = new Konva.Layer(); elevStage.add(elevLayer); }
+    var ohost = el('stage_open');
+    if (ohost) { openStage = new Konva.Stage({ container: 'stage_open', width: ohost.clientWidth || 400, height: 300 }); openLayer = new Konva.Layer(); openStage.add(openLayer); }
     var fi = el('excelFileInput'); if (fi) fi.addEventListener('change', function (e) { if (e.target.files[0]) onFile(e.target.files[0]); });
     window.addEventListener('resize', function () {
       if (!stage || !host) return;
       stage.width(host.clientWidth || 600);
       if (elevStage) elevStage.width(host.clientWidth || 600);
+      if (openStage && ohost) openStage.width(ohost.clientWidth || 400);
       if (_last) draw(_last);
     });
+  }
+  //  Opening 그림 — 단면 외곽(옅게) + 개구부(강조) 를 제 캔버스에 맞춰
+  function drawOpening(data) {
+    if (!openStage) return;
+    openLayer.destroyChildren();
+    var sec = (data && data.section) || {}, ops = sec.openings || [], outer = sec.outer || [];
+    var c = el('opConsider');
+    if (!ops.length || (c && !c.checked)) { openLayer.draw(); return; }
+    var all = []; outer.forEach(function (p) { all.push(p); }); ops.forEach(function (op) { op.forEach(function (p) { all.push(p); }); });
+    if (!all.length) { openLayer.draw(); return; }
+    var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    all.forEach(function (p) { if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0]; if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1]; });
+    var W = openStage.width(), H = openStage.height(), pad = 22;
+    var s = Math.min((W - 2 * pad) / Math.max(1, maxx - minx), (H - 2 * pad) / Math.max(1, maxy - miny));
+    var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+    var T = function (p) { return [W / 2 + (p[0] - cx) * s, H / 2 - (p[1] - cy) * s]; };
+    if (outer.length) openLayer.add(new Konva.Line({ points: polyPoints(outer, T), stroke: '#cbd5e1', strokeWidth: 1.5, closed: true }));
+    (sec.cells || []).forEach(function (cc) { openLayer.add(new Konva.Line({ points: polyPoints(cc, T), stroke: '#e2e8f0', strokeWidth: 1, closed: true })); });
+    ops.forEach(function (op) { openLayer.add(new Konva.Line({ points: polyPoints(op, T), stroke: '#2563eb', strokeWidth: 2, closed: true, fill: 'rgba(37,99,235,0.08)' })); });
+    openLayer.draw();
   }
   function fitView(pts) {
     var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
