@@ -606,21 +606,23 @@
     else { drawBarsFinal(data.bars2d || [], T); drawTiesFinal(data.ties2d || [], T); drawLbarsFinal(data.lbars2d || [], T); barLayer.draw(); }
     drawElev(data);
   }
-  //  철근 스타일 — 원본과 동일 : 실제 지름(mm) × 화면배율 로 선 두께, 그 위에 #FF3D00 글로우.
-  //  (내 좌표는 미리 변환돼 있으므로 strokeScaleEnabled 대신 dia*T.s 픽셀로 준다.)
+  //  철근 스타일 — 원본과 동일 : 실제 지름(mm) × 화면배율 로 선 두께.
+  //  원본은 **선택(focus) 된 철근만** #FF3D00 글로우를 입힌다 — 기본은 심선 하나뿐(glowOp=0).
+  //  색 : trebar 보라 #8A2BE2 · srebar 갈고리 **청록 #0E9F9F** · lrebar 금색 점.
+  var TRE_COLOR = '#8A2BE2', SRE_COLOR = '#0E9F9F';
   function barW(dia, T) { return Math.max(0.8, (dia > 0 ? dia : 5) * T.s); }
   function addBar(pts, dia, T, core, glowOp) {
     var w = barW(dia, T);
-    barLayer.add(new Konva.Line({ points: pts, stroke: '#FF3D00', strokeWidth: w * 2.1, lineCap: 'round', lineJoin: 'round', opacity: glowOp }));   // 글로우
-    barLayer.add(new Konva.Line({ points: pts, stroke: core, strokeWidth: w, lineCap: 'round', lineJoin: 'round' }));                                  // 심선
+    if (glowOp) barLayer.add(new Konva.Line({ points: pts, stroke: '#FF3D00', strokeWidth: w * 2.1, lineCap: 'round', lineJoin: 'round', opacity: glowOp }));
+    barLayer.add(new Konva.Line({ points: pts, stroke: core, strokeWidth: w, lineCap: 'round', lineJoin: 'round' }));
   }
-  function drawBarsFinal(bars2d, T) { bars2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, '#8A2BE2', 0.22); }); }
-  //  srebar 갈고리(ㄷ·∩) — 스터럽. 횡철근과 같은 지름비례+글로우 스타일.
-  function drawTiesFinal(ties2d, T) { ties2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, '#8A2BE2', 0.22); }); }
+  function drawBarsFinal(bars2d, T) { bars2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, TRE_COLOR, 0); }); }
+  //  srebar 갈고리(ㄷ·∩) — 스터럽. 원본과 같은 청록(#0E9F9F).
+  function drawTiesFinal(ties2d, T) { ties2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, SRE_COLOR, 0); }); }
   function drawLbarsFinal(lbars2d, T) {
     lbars2d.forEach(function (b) {
       var r = Math.max(1.2, T.s * (b.dia || 13) / 2);
-      (b.dots || []).forEach(function (p) { var c = T(p); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#8A2BE2', strokeWidth: Math.max(0.6, r * 0.18) })); });
+      (b.dots || []).forEach(function (p) { var c = T(p); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#B8860B', strokeWidth: Math.max(0.6, r * 0.18) })); });
     });
   }
   function playAnim(data, T) {
@@ -638,11 +640,11 @@
         var start = a.start || 0, frames = a.frames || [], local = tick - start, isL = (a.kind === 'lrebar');
         if (local < 0) return;
         if (local < frames.length) {
-          if (isL) { var r = Math.max(1.2, T.s * (a.dia || 13) / 2); frames[local].forEach(function (s) { var c = T([s[0], s[1]]); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#8A2BE2', strokeWidth: Math.max(0.6, r * 0.18), opacity: 0.85 })); }); }
-          else { frames[local].forEach(function (s) { var p1 = T([s[0], s[1]]), p2 = T([s[2], s[3]]); addBar([p1[0], p1[1], p2[0], p2[1]], a.dia, T, '#8A2BE2', 0.14); }); }
+          if (isL) { var r = Math.max(1.2, T.s * (a.dia || 13) / 2); frames[local].forEach(function (s) { var c = T([s[0], s[1]]); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#B8860B', strokeWidth: Math.max(0.6, r * 0.18), opacity: 0.85 })); }); }
+          else { frames[local].forEach(function (s) { var p1 = T([s[0], s[1]]), p2 = T([s[2], s[3]]); addBar([p1[0], p1[1], p2[0], p2[1]], a.dia, T, TRE_COLOR, 0); }); }
         } else {
           if (isL) { var b = finalL[a.id]; if (b) drawLbarsFinal([b], T); }
-          else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, '#8A2BE2', 0.22); }
+          else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, TRE_COLOR, 0); }
         }
       });
       //  lrebar(금색 점)·ties(갈고리)는 이제 바로 최종 자리로 온다(anim 없음) — 매 프레임 같이 그려 유지한다.
