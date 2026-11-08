@@ -527,11 +527,19 @@
     else { drawBarsFinal(data.bars2d || [], T); drawLbarsFinal(data.lbars2d || [], T); barLayer.draw(); }
     drawElev(data);
   }
-  function drawBarsFinal(bars2d, T) { bars2d.forEach(function (b) { barLayer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#f97316', strokeWidth: 1.8, lineJoin: 'round' })); }); }
+  //  철근 스타일 — 원본과 동일 : 실제 지름(mm) × 화면배율 로 선 두께, 그 위에 #FF3D00 글로우.
+  //  (내 좌표는 미리 변환돼 있으므로 strokeScaleEnabled 대신 dia*T.s 픽셀로 준다.)
+  function barW(dia, T) { return Math.max(0.8, (dia > 0 ? dia : 5) * T.s); }
+  function addBar(pts, dia, T, core, glowOp) {
+    var w = barW(dia, T);
+    barLayer.add(new Konva.Line({ points: pts, stroke: '#FF3D00', strokeWidth: w * 2.1, lineCap: 'round', lineJoin: 'round', opacity: glowOp }));   // 글로우
+    barLayer.add(new Konva.Line({ points: pts, stroke: core, strokeWidth: w, lineCap: 'round', lineJoin: 'round' }));                                  // 심선
+  }
+  function drawBarsFinal(bars2d, T) { bars2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, '#8A2BE2', 0.22); }); }
   function drawLbarsFinal(lbars2d, T) {
     lbars2d.forEach(function (b) {
       var r = Math.max(1.2, T.s * (b.dia || 13) / 2);
-      (b.dots || []).forEach(function (p) { var c = T(p); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#f59e0b', stroke: '#b45309', strokeWidth: Math.max(0.6, r * 0.18) })); });
+      (b.dots || []).forEach(function (p) { var c = T(p); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#8A2BE2', strokeWidth: Math.max(0.6, r * 0.18) })); });
     });
   }
   function playAnim(data, T) {
@@ -546,11 +554,11 @@
         var start = a.start || 0, frames = a.frames || [], local = tick - start, isL = (a.kind === 'lrebar');
         if (local < 0) return;
         if (local < frames.length) {
-          if (isL) { var r = Math.max(1.2, T.s * (a.dia || 13) / 2); frames[local].forEach(function (s) { var c = T([s[0], s[1]]); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#fbbf24', stroke: '#b45309', strokeWidth: Math.max(0.6, r * 0.18) })); }); }
-          else { frames[local].forEach(function (s) { var p1 = T([s[0], s[1]]), p2 = T([s[2], s[3]]); barLayer.add(new Konva.Line({ points: [p1[0], p1[1], p2[0], p2[1]], stroke: '#fb923c', strokeWidth: 1.6, lineCap: 'round' })); }); }
+          if (isL) { var r = Math.max(1.2, T.s * (a.dia || 13) / 2); frames[local].forEach(function (s) { var c = T([s[0], s[1]]); barLayer.add(new Konva.Circle({ x: c[0], y: c[1], radius: r, fill: '#FFD700', stroke: '#8A2BE2', strokeWidth: Math.max(0.6, r * 0.18), opacity: 0.85 })); }); }
+          else { frames[local].forEach(function (s) { var p1 = T([s[0], s[1]]), p2 = T([s[2], s[3]]); addBar([p1[0], p1[1], p2[0], p2[1]], a.dia, T, '#8A2BE2', 0.14); }); }
         } else {
           if (isL) { var b = finalL[a.id]; if (b) drawLbarsFinal([b], T); }
-          else { var bt = finalT[a.id]; if (bt) barLayer.add(new Konva.Line({ points: polyPoints(bt.pts || [], T), stroke: '#f97316', strokeWidth: 1.8, lineJoin: 'round' })); }
+          else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, '#8A2BE2', 0.22); }
         }
       });
       barLayer.draw(); tick++;
