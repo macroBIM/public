@@ -51,7 +51,8 @@
   var OPEN_DEF = { shape: 'HEX', B: 800, H: 1000, CTTX: 150, CTTY: 200, CTBX: 150, CTBY: 150, X: 0, Y: 500 };
   var SEG_DEF = 20000, DIA_DEF = 2000;
   //  3D 뷰 모듈(공개, 엔진 없음 — 서버 2D 결과를 교축 z 로 편다). jsDelivr 로 받는다.
-  var MOD3D = 'https://cdn.jsdelivr.net/gh/macroBIM/public@main/bim_pscboxdia_3d.js';
+  //  호스트 페이지가 window.PSC_BASE(= 커밋 고정 jsDelivr 베이스)를 주면 3D 모듈도 같은 버전으로.
+  var MOD3D = (window.PSC_BASE || 'https://cdn.jsdelivr.net/gh/macroBIM/public@main/') + 'bim_pscboxdia_3d.js';
   var OP_SHAPES = [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']];
 
   // ── 상태 ──
@@ -591,5 +592,8 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function () { PX.mount('mount-draw-pscboxdia'); });
+  //  스크립트가 늦게(비동기 로더로) 들어와도 마운트되도록 readyState 를 본다.
+  function _boot() { PX.mount('mount-draw-pscboxdia'); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _boot);
+  else _boot();
 })();
