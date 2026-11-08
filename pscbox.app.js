@@ -130,10 +130,7 @@
       '        <div class="px-opthalf px-optseg"><b>Segment Length (mm) :</b>' +
       '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="segLen_s" value="' + SEG_DEF + '" onchange="PXDIA.redraw()"></label>' +
       '        </div>' +
-      '        <div class="px-opthalf px-optseg"><b>Diaphragm Length (mm) :</b>' +
-      '          <label><input type="text" spellcheck="false" class="form-input px-seg" id="diaThk_s" value="' + DIA_DEF + '" onchange="PXDIA.redraw()"></label>' +
-      '        </div>' +
-      '        <div class="px-opthalf"><b>Cover Depth (mm) :</b>' +
+      '        <div class="px-opthalf" style="flex:0 0 auto;flex-wrap:nowrap;white-space:nowrap;"><b>Cover Depth (mm) :</b>' +
       '          <label>Deck <input type="text" spellcheck="false" class="form-input px-cover" id="cover_deck_s" value="50" onchange="PXDIA.redraw()"></label>' +
       '          <label>Exterior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_ext_s" value="40" onchange="PXDIA.redraw()"></label>' +
       '          <label>Interior <input type="text" spellcheck="false" class="form-input px-cover" id="cover_int_s" value="30" onchange="PXDIA.redraw()"></label>' +
