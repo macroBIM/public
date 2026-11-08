@@ -103,27 +103,20 @@
   }
   //  Dimension 카드 안 Opening 섹션 : 제목+고려 체크박스 → (체크 시) 3칸: 구멍상세 · 단면내 위치 · 입력태그
   function openingSectionHTML() {
-    var paneH = 'font-size:11.5px;font-weight:700;color:#64748b;letter-spacing:.04em;margin:0 0 6px;text-transform:uppercase;';
-    var boxCss = 'flex:1 1 0;min-height:200px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;';
+    //  원본 pscbox-ui.css 의 기존 클래스 그대로 — op-wrap + 3칸(op-view, 각 1/3) 동일 너비.
+    //  그림칸은 16:9, 세 칸 모두 같은 폭.
+    var box169 = 'aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+    var box169col = 'aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;overflow:hidden;';
     return '      <div style="margin-top:16px;border-top:1px dashed var(--hair,#e2e8f0);padding-top:12px;">' +
-      '        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+      '        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;">' +
       '          <span class="draw-card-title">OPENING</span>' +
       '          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;font-weight:500;"><input type="checkbox" id="opConsider" checked onchange="PXDIA.onOpConsider()"> 고려 (consider)</label>' +
       '          <span class="draw-card-desc" style="margin:0;">셀당 하나 · 2 Cell 은 중심에서 &#8723;X 로 양쪽에. RECT/HEX/OCT · Y 는 하부슬래브 상단 기준.</span>' +
       '        </div>' +
-      '        <div id="openingBody" style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;">' +
-      '          <div style="flex:0 1 190px;min-width:160px;display:flex;flex-direction:column;">' +
-      '            <div style="' + paneH + '">구멍상세 (hole detail)</div>' +
-      '            <div id="op_detail" style="' + boxCss + 'padding:8px;display:flex;flex-direction:column;"></div>' +
-      '          </div>' +
-      '          <div style="flex:1 1 340px;min-width:280px;display:flex;flex-direction:column;">' +
-      '            <div style="' + paneH + '">단면내 위치 (diaphragm face)</div>' +
-      '            <div id="op_face" style="' + boxCss + '"></div>' +
-      '          </div>' +
-      '          <div style="flex:0 1 280px;min-width:250px;display:flex;flex-direction:column;">' +
-      '            <div style="' + paneH + '">입력태그 (inputs)</div>' +
-      '            <div class="px-tblwrap" style="flex:1 1 0;min-height:0;padding:10px 14px;">' + openingInputsHTML() + '</div>' +
-      '          </div>' +
+      '        <div class="op-wrap" id="openingBody">' +
+      '          <div class="op-view"><h4>구멍상세 (hole detail)</h4><div id="op_detail" style="' + box169col + '"></div></div>' +
+      '          <div class="op-view"><h4>단면내 위치 (diaphragm face)</h4><div id="op_face" style="' + box169 + '"></div></div>' +
+      '          <div class="op-view"><h4>입력태그 (inputs)</h4><div style="padding:11px 12px;">' + openingInputsHTML() + '</div></div>' +
       '        </div>' +
       '      </div>';
   }

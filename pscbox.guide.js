@@ -291,7 +291,7 @@ window.pscDrawHoleDetail = function(divId, o, slope){
 	};
 	var d=_opPoly(o, slope).map(function(p){ return p[0].toFixed(0)+','+(-p[1]).toFixed(0); }).join(' ');
 	box.innerHTML =
-		'<svg viewBox="'+(x1-padL).toFixed(0)+' '+(-y2-padY).toFixed(0)+' '+(w+padL+padR).toFixed(0)+' '+(hh+2*padY).toFixed(0)+'" preserveAspectRatio="xMidYMid meet" style="width:100%;flex:1 1 0;min-height:0;display:block;">'+
+		'<svg viewBox="'+(x1-padL).toFixed(0)+' '+(-y2-padY).toFixed(0)+' '+(w+padL+padR).toFixed(0)+' '+(hh+2*padY).toFixed(0)+'" preserveAspectRatio="xMidYMid meet" style="max-width:100%;max-height:100%;width:auto;height:auto;flex:0 1 auto;min-height:0;display:block;">'+
 		mark(c.top,true)+mark(c.bot,false)+
 		'<polygon points="'+d+'" fill="#eff6ff" stroke="#2563eb" stroke-width="'+sw.toFixed(1)+'" stroke-linejoin="round"/>'+
 		'</svg><div style="text-align:center;color:#64748b;font-size:12px;margin-top:4px;">'+Math.round(o.B)+' &times; '+Math.round(o.H)+'</div>';
@@ -367,7 +367,7 @@ window.pscDrawDiaFace = function(divId, ap, GEO, o){
 		rec.addDimLinear(0,cx,slabTop,cx,yB,Bo*0.75,'Y');
 	});
 	var W = Math.round(box.getBoundingClientRect().width) || box.clientWidth || 470;
-	var H = box.clientHeight || Math.round(W*9/16);
+	var H = Math.round(W*9/16);                 // 그림칸 16:9 고정
 	box.innerHTML = window.RWSVG.renderSVG(rec, W, H);
 };
 })();
