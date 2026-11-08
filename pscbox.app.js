@@ -169,7 +169,7 @@
       '    <div class="draw-card-body" style="padding:0;">' +
       '      <div class="phys-split">' +
       '        <div class="phys-pane"><span class="phys-cap">2D &mdash; SECTION</span>' +
-      '          <div id="stage2d" style="width:100%;background:#fff;overflow:hidden;"></div></div>' +
+      '          <div id="stage2d" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
       '        <div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; DIAPHRAGM</span>' +
       '          <div class="view3d-bar" id="view3dBar">' + view3dBarHTML() + '</div>' +
       '          <div id="render3dContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
@@ -523,6 +523,19 @@
   function polyPoints(pts, T) { var a = []; pts.forEach(function (p) { var q = T(p); a.push(q[0], q[1]); }); return a; }
   function stopAnim() { if (animTimer) { clearInterval(animTimer); animTimer = null; } }
 
+  //  옅은 격자 — 원본 격벽처럼 파란 바탕 위에 모형좌표 기준 1 m 간격 선.
+  function drawGrid(all, T) {
+    if (!all || !all.length) return;
+    var minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+    all.forEach(function (p) { if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0]; if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1]; });
+    if (!isFinite(minx)) return;
+    var span = Math.max(maxx - minx, maxy - miny), step = 1000;
+    while (span / step > 40) step *= 2;   // 선이 너무 촘촘하지 않게
+    var x0 = Math.floor(minx / step) * step, x1 = Math.ceil(maxx / step) * step;
+    var y0 = Math.floor(miny / step) * step, y1 = Math.ceil(maxy / step) * step;
+    for (var x = x0; x <= x1 + 0.5; x += step) { var a = T([x, y0]), b = T([x, y1]); layer.add(new Konva.Line({ points: [a[0], a[1], b[0], b[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
+    for (var y = y0; y <= y1 + 0.5; y += step) { var c = T([x0, y]), d = T([x1, y]); layer.add(new Konva.Line({ points: [c[0], c[1], d[0], d[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
+  }
   function draw(data) {
     _last = data; stopAnim();
     if (!layer) return;
@@ -537,12 +550,14 @@
     (data.anim || []).forEach(function (a) { (a.frames || []).forEach(function (fr) { fr.forEach(function (s) { all.push([s[0], s[1]]); if (s.length >= 4) all.push([s[2], s[3]]); }); }); });
     if (!all.length) { layer.draw(); barLayer.draw(); drawElev(data); return; }
     var T = fitView(all);
-    if (sec.outer) layer.add(new Konva.Line({ points: polyPoints(sec.outer, T), stroke: '#0f172a', strokeWidth: 2, closed: true }));
-    (sec.cells || []).forEach(function (c) { layer.add(new Konva.Line({ points: polyPoints(c, T), stroke: '#334155', strokeWidth: 1, closed: true })); });
-    (sec.openings || []).forEach(function (op) { layer.add(new Konva.Line({ points: polyPoints(op, T), stroke: '#64748b', strokeWidth: 1.5, dash: [6, 4], closed: true })); });
+    drawGrid(all, T);   // 원본 격벽처럼 파란 바탕 위 옅은 격자
+    //  원본 격벽 2D 팔레트(#41699b 바탕) : 외곽·개구부 흰선, 덕트 분홍(#FF61E6)
+    if (sec.outer) layer.add(new Konva.Line({ points: polyPoints(sec.outer, T), stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round' }));
+    (sec.cells || []).forEach(function (c) { layer.add(new Konva.Line({ points: polyPoints(c, T), stroke: 'rgba(255,255,255,0.45)', strokeWidth: 1, closed: true })); });
+    (sec.openings || []).forEach(function (op) { layer.add(new Konva.Line({ points: polyPoints(op, T), stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round' })); });
     (sec.ducts || []).forEach(function (d) {
-      if (d.shape === 'circ') { var c = T([d.x, d.y]); layer.add(new Konva.Circle({ x: c[0], y: c[1], radius: T.s * d.D / 2, stroke: '#cbd5e1', strokeWidth: 1 })); }
-      else if (d.pts) { layer.add(new Konva.Line({ points: polyPoints(d.pts, T), stroke: '#cbd5e1', strokeWidth: 1, closed: true })); }
+      if (d.shape === 'circ') { var c = T([d.x, d.y]); layer.add(new Konva.Circle({ x: c[0], y: c[1], radius: T.s * d.D / 2, stroke: '#FF61E6', strokeWidth: 1.5 })); }
+      else if (d.pts) { layer.add(new Konva.Line({ points: polyPoints(d.pts, T), stroke: '#FF61E6', strokeWidth: 1.5, closed: true })); }
     });
     (data.mesh2d || []).forEach(function (b) { layer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#ea580c', strokeWidth: 1.4, lineCap: 'round', opacity: 0.9 })); });
     layer.draw();
