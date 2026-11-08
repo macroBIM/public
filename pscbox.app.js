@@ -410,14 +410,36 @@
     hostEl.style.height = h + 'px';
     st.width(w); st.height(h);
   }
+  //  휠 줌 + 드래그 팬 + 더블클릭 리셋 (원본 철근도와 같은 조작). 선·점 두께는 stage 배율로 같이 커진다.
+  function attachStageZoomPan(st) {
+    if (!st || st._zp) return; st._zp = true;
+    st.draggable(true);
+    try { st.container().style.cursor = 'grab'; } catch (e) {}
+    st.on('mousedown touchstart', function () { try { st.container().style.cursor = 'grabbing'; } catch (e) {} });
+    st.on('mouseup touchend', function () { try { st.container().style.cursor = 'grab'; } catch (e) {} });
+    st.on('wheel', function (e) {
+      e.evt.preventDefault();
+      var old = st.scaleX() || 1;
+      var ptr = st.getPointerPosition();
+      if (!ptr) { var rect = st.container().getBoundingClientRect(); ptr = { x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top }; }   // Konva 포인터가 없으면 이벤트 좌표로
+      var mp = { x: (ptr.x - st.x()) / old, y: (ptr.y - st.y()) / old };
+      var ns = e.evt.deltaY > 0 ? old / 1.12 : old * 1.12;
+      ns = Math.max(0.4, Math.min(80, ns));
+      st.scale({ x: ns, y: ns });
+      st.position({ x: ptr.x - mp.x * ns, y: ptr.y - mp.y * ns });
+      st.batchDraw();
+    });
+    st.on('dblclick dbltap', function () { st.scale({ x: 1, y: 1 }); st.position({ x: 0, y: 0 }); st.batchDraw(); });
+  }
   function initStages() {
     var host = el('stage2d'); if (!host) return;
     stage = new Konva.Stage({ container: 'stage2d', width: host.clientWidth || 600, height: 420 });
     layer = new Konva.Layer(); barLayer = new Konva.Layer();
     stage.add(layer); stage.add(barLayer);
     sizeStage169(host, stage);
+    attachStageZoomPan(stage);
     var ehost = el('stage_elev');
-    if (ehost) { elevStage = new Konva.Stage({ container: 'stage_elev', width: host.clientWidth || 600, height: 220 }); elevLayer = new Konva.Layer(); elevStage.add(elevLayer); }
+    if (ehost) { elevStage = new Konva.Stage({ container: 'stage_elev', width: host.clientWidth || 600, height: 220 }); elevLayer = new Konva.Layer(); elevStage.add(elevLayer); attachStageZoomPan(elevStage); }
     var fi = el('excelFileInput'); if (fi) fi.addEventListener('change', function (e) { if (e.target.files[0]) onFile(e.target.files[0]); });
     window.addEventListener('resize', function () {
       if (!stage || !host) return;
@@ -504,6 +526,7 @@
   function draw(data) {
     _last = data; stopAnim();
     if (!layer) return;
+    if (stage) { stage.scale({ x: 1, y: 1 }); stage.position({ x: 0, y: 0 }); }   // 새 계산은 맞춰 보이게 (줌 리셋)
     layer.destroyChildren(); barLayer.destroyChildren();
     var sec = data.section || {}, all = [];
     (sec.outer || []).forEach(function (p) { all.push(p); });
@@ -547,6 +570,9 @@
     (data.bars2d || []).forEach(function (b) { finalT[b.id] = b; });
     (data.lbars2d || []).forEach(function (b) { finalL[b.id] = b; });
     var maxTick = 0; anim.forEach(function (a) { maxTick = Math.max(maxTick, (a.start || 0) + (a.frames || []).length); });
+    //  빽빽한 데이터(수백 개)면 settle 프레임이 수천 틱 → 15초+ 걸려 종방향 점철근이 끝에야 나왔다.
+    //  전체를 ~3초(약 70프레임) 안에 끝내도록 틱을 건너뛴다.
+    var step = Math.max(1, Math.ceil(maxTick / 70));
     var tick = 0;
     function render() {
       barLayer.destroyChildren();
@@ -561,8 +587,8 @@
           else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, '#8A2BE2', 0.22); }
         }
       });
-      barLayer.draw(); tick++;
-      if (tick > maxTick + 2) stopAnim();
+      barLayer.draw(); tick += step;
+      if (tick > maxTick + step) stopAnim();
     }
     render(); animTimer = setInterval(render, 45);
   }
