@@ -199,4 +199,175 @@ window.pscDrawGuide = function(sdivid, ap, GEO){
 		if (dh > 100) otbl.style.height = Math.round(dh) + 'px';
 	}
 };
+
+// ============================================================================
+//  개구부(OPENING) 그림 — 입력값/서버 기하로만 그린다 (엔진 비밀 없음).
+//  구멍상세 pscDrawHoleDetail(divId, o, slope) · 단면내 위치 pscDrawDiaFace(divId, ap, GEO, o).
+//  원본 bim_pscbox_diaphragm_test.js 의 _drawOpeningPreview / _drawDiaView 를 옮긴 것.
+//  o = { on, shape, B, H, cttx, ctty, ctbx, ctby, X, Y }
+// ============================================================================
+
+// 실제로 접히는 양 (RECT 없음 · HEX 위만 · OCT 위·아래)
+function _opCuts(o){
+	var h = o.B/2, H = o.H;
+	var lim = function(v,m){ return Math.max(0, Math.min(Number(v)||0, m)); };
+	var top = (o.shape === 'RECT') ? {x:0,y:0} : {x:lim(o.cttx,h-1), y:lim(o.ctty,H-1)};
+	var bot = (o.shape === 'OCT')  ? {x:lim(o.ctbx,h-1), y:lim(o.ctby,H-1)} : {x:0,y:0};
+	if (top.y + bot.y > H-1){ var s=(H-1)/(top.y+bot.y); top.y*=s; bot.y*=s; }
+	return {top:top, bot:bot};
+}
+// 개구부 윤곽 (원점 = 하단 중앙). 반시계 닫힌 폴리곤. slope(%) 로 상·하단면 경사.
+function _opPoly(o, slope){
+	var h = o.B/2, H = o.H, c = _opCuts(o);
+	var pts = [[-h+c.bot.x,0],[h-c.bot.x,0],[h,c.bot.y],[h,H-c.top.y],
+	           [h-c.top.x,H],[-h+c.top.x,H],[-h,H-c.top.y],[-h,c.bot.y]];
+	pts = pts.filter(function(p,i){ var q=pts[(i+pts.length-1)%pts.length];
+		return Math.abs(p[0]-q[0])>1e-9 || Math.abs(p[1]-q[1])>1e-9; });
+	var k = (Number(slope)||0)/100;
+	if (!k) return pts;
+	return pts.map(function(p){ return [p[0], p[1]+p[0]*k]; });
+}
+// 단면 좌표계에 앉힌 개구부 (1 Cell 하나, 2 Cell ∓|X| 둘)
+function _opAt(ap, o){
+	if (!o.on || !(o.B>0) || !(o.H>0)) return [];
+	var two = Number(ap.NCELL) === 2;
+	var xs = two ? [-Math.abs(o.X), Math.abs(o.X)] : [o.X];
+	var slb = Number(ap.SLB) || 0;
+	return xs.map(function(x0){
+		var slabTop = -Number(ap.TH) + Number(ap.TBS) + x0*slb/100;
+		var y0 = slabTop + o.Y;
+		return { o:o, x0:x0, y0:y0, slope:slb,
+		         pts: _opPoly(o, slb).map(function(p){ return [p[0]+x0, p[1]+y0]; }) };
+	});
+}
+// 셀(격벽면) 폴리곤 — 해치 범위
+function _cellPolys(P, two){
+	var pick = function(names){ var out=[]; for(var i=0;i<names.length;i++){ var p=P[names[i]]; if(p) out.push([p.x,p.y]); } return (out.length>=3)?out:null; };
+	if (!two){
+		return [pick(['PTSC','PTHR3','PTHR2','PTHR1','PBHR1','PBHR2','PBHR3','PBSC','PBHL3','PBHL2','PBHL1','PTHL1','PTHL2','PTHL3'])].filter(Boolean);
+	}
+	return [
+		pick(['PTHL3','PTHCL3','PTHCL2','PTHCL1','PBHCL1','PBHCL2','PBHCL3','PBHL3','PBHL2','PBHL1','PTHL1','PTHL2']),
+		pick(['PTHCR3','PTHR3','PTHR2','PTHR1','PBHR1','PBHR2','PBHR3','PBHCR3','PBHCR2','PBHCR1','PTHCR1','PTHCR2'])
+	].filter(Boolean);
+}
+// 45° 해치선 y=x+c 가 폴리곤을 지나는 x 구간 (짝수 개 → 둘씩)
+function _hatchCuts(poly, c){
+	var out=[];
+	for (var i=0;i<poly.length;i++){
+		var a=poly[i], b=poly[(i+1)%poly.length];
+		var fa=a[1]-a[0]-c, fb=b[1]-b[0]-c;
+		if ((fa>0)===(fb>0)) continue;
+		var t=fa/(fa-fb); out.push(a[0]+(b[0]-a[0])*t);
+	}
+	return out.sort(function(p,q){ return p-q; });
+}
+
+// 구멍상세 — 개구부 하나를 제 비율대로 (잘린 모서리 점선 + Cttx/Ctty/Ctbx/Ctby 이름)
+window.pscDrawHoleDetail = function(divId, o, slope){
+	var box = document.getElementById(divId);
+	if (!box) return;
+	if (!o || !o.on || !(o.B>0) || !(o.H>0)){ box.innerHTML = '<svg viewBox="0 0 100 100"></svg><div style="text-align:center;color:#94a3b8;font-size:12px;">&mdash;</div>'; return; }
+	var h=o.B/2, H=o.H, c=_opCuts(o);
+	var k=(Number(slope)||0)/100;
+	var sh=function(x,y){ return [x, y+x*k]; };
+	var SS=function(x,y){ var p=sh(x,y); return p[0].toFixed(0)+','+(-p[1]).toFixed(0); };
+	var rc=[sh(-h,0),sh(h,0),sh(h,H),sh(-h,H)];
+	var xs=rc.map(function(p){return p[0];}), ys=rc.map(function(p){return p[1];});
+	var x1=Math.min.apply(null,xs), x2=Math.max.apply(null,xs);
+	var y1=Math.min.apply(null,ys), y2=Math.max.apply(null,ys);
+	var w=x2-x1, hh=y2-y1, span=Math.max(w,hh);
+	var fs=span/10.5, sw=span/46;
+	var padL=fs*0.5, padR=fs*3.1, padY=fs*1.4;
+	var text=function(x,y,dx,dy,anchor,str){ var p=sh(x,y);
+		return '<text x="'+(p[0]+dx).toFixed(0)+'" y="'+(-p[1]+dy).toFixed(0)+'" font-size="'+fs.toFixed(0)+'" fill="#64748b" text-anchor="'+anchor+'">'+str+'</text>'; };
+	var mark=function(cut,top){
+		if (!(cut.x>0) && !(cut.y>0)) return '';
+		var ye=top?H:0, yi=top?H-cut.y:cut.y;
+		var s='<polyline points="'+SS(h-cut.x,ye)+' '+SS(h,ye)+' '+SS(h,yi)+'" fill="none" stroke="#94a3b8" stroke-width="'+sw.toFixed(1)+'" stroke-dasharray="'+(sw*3).toFixed(1)+' '+(sw*2.2).toFixed(1)+'"/>';
+		if (cut.x>0) s+=text(h-cut.x/2, ye, 0, top?-fs*0.35:fs*1.0, 'middle', top?'Cttx':'Ctbx');
+		if (cut.y>0) s+=text(h, (ye+yi)/2, fs*0.3, fs*0.34, 'start', top?'Ctty':'Ctby');
+		return s;
+	};
+	var d=_opPoly(o, slope).map(function(p){ return p[0].toFixed(0)+','+(-p[1]).toFixed(0); }).join(' ');
+	box.innerHTML =
+		'<svg viewBox="'+(x1-padL).toFixed(0)+' '+(-y2-padY).toFixed(0)+' '+(w+padL+padR).toFixed(0)+' '+(hh+2*padY).toFixed(0)+'" preserveAspectRatio="xMidYMid meet" style="width:100%;flex:1 1 0;min-height:0;display:block;">'+
+		mark(c.top,true)+mark(c.bot,false)+
+		'<polygon points="'+d+'" fill="#eff6ff" stroke="#2563eb" stroke-width="'+sw.toFixed(1)+'" stroke-linejoin="round"/>'+
+		'</svg><div style="text-align:center;color:#64748b;font-size:12px;margin-top:4px;">'+Math.round(o.B)+' &times; '+Math.round(o.H)+'</div>';
+};
+
+// 단면내 위치 (Diaphragm face) — 외곽 + 셀 해치(개구부 뚫림) + 개구부 외곽(빨강) + B·H·X·Y
+window.pscDrawDiaFace = function(divId, ap, GEO, o){
+	var box = document.getElementById(divId);
+	if (!box || typeof window.RWSVG === 'undefined') return;
+	var P={}; (GEO.points||[]).forEach(function(p){ P[p.name]=p[p.name]; });
+	if (!P.PTL || !P.PBC) return;
+	var two = Number(ap.NCELL) === 2;
+	var S = Math.max(P.PTR.x-P.PTL.x, P.PTC.y-P.PBC.y);
+	var rec = new window.RWSVG.MockViewer();
+	rec.addLayer('c','cyan','solid',1);
+	rec.addLayer('f','cyan','faint',1);
+	rec.addLayer('o','red','solid',1);
+	rec.addLayer('h','gray','hidden',1);
+	GEO.lines.forEach(function(l){ rec.addLine(0,l.x1,l.y1,l.x2,l.y2,'c'); });
+	GEO.arcs.forEach(function(a){ rec.addArc(0,a.x,a.y,a.r,a.angb,a.ange,'c'); });
+	var ops = _opAt(ap, o);
+	var Sy = Math.max(1, P.PTC.y-P.PBC.y);
+	var xlev = Math.max(P.PTL.y, P.PTC.y, P.PTR.y) + Sy*0.12;
+	// 해치 — 셀 안이면서 개구부 밖인 구간만
+	_cellPolys(P, two).forEach(function(poly){
+		var cs=poly.map(function(p){return p[1]-p[0];});
+		var cmin=Math.min.apply(null,cs)-1, cmax=Math.max.apply(null,cs)+1;
+		for (var cc=cmin;cc<=cmax;cc+=S*0.030){
+			var inn=_hatchCuts(poly,cc);
+			for (var i=0;i+1<inn.length;i+=2){
+				var spans=[[inn[i],inn[i+1]]];
+				ops.forEach(function(op){
+					var cut=_hatchCuts(op.pts,cc);
+					for (var k=0;k+1<cut.length;k+=2){
+						var next=[];
+						spans.forEach(function(sp){
+							if (cut[k+1]<=sp[0]||cut[k]>=sp[1]){ next.push(sp); return; }
+							if (cut[k]>sp[0]) next.push([sp[0],cut[k]]);
+							if (cut[k+1]<sp[1]) next.push([cut[k+1],sp[1]]);
+						});
+						spans=next;
+					}
+				});
+				spans.forEach(function(sp){ if (sp[1]-sp[0]>S*0.004) rec.addLine(0,sp[0],sp[0]+cc,sp[1],sp[1]+cc,'f'); });
+			}
+		}
+	});
+	// 개구부 외곽 + 치수
+	ops.forEach(function(op){
+		var pts=op.pts;
+		for (var k=0;k<pts.length;k++){ var a=pts[k],b=pts[(k+1)%pts.length]; rec.addLine(0,a[0],a[1],b[0],b[1],'o'); }
+		var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
+		var xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);
+		var ymin=Math.min.apply(null,ys);
+		var faceAt=function(x,top){ var best=null;
+			for (var k2=0;k2<pts.length;k2++){ var a2=pts[k2],b2=pts[(k2+1)%pts.length];
+				if ((a2[0]-x)*(b2[0]-x)<=0 && Math.abs(b2[0]-a2[0])>1e-9){
+					var y=a2[1]+(b2[1]-a2[1])*(x-a2[0])/(b2[0]-a2[0]);
+					best=(best===null)?y:(top?Math.max(best,y):Math.min(best,y));
+				}
+			}
+			return best;
+		};
+		var cx=op.x0, yT=faceAt(cx,true), yB=faceAt(cx,false);
+		if (yT===null || yB===null) return;
+		var slabTop=-Number(ap.TH)+Number(ap.TBS)+cx*(Number(ap.SLB)||0)/100;
+		var Bo=Math.max(1,op.o.B), Ho=Math.max(1,op.o.H);
+		rec.addLine(0,0,xlev+Sy*0.03,0,ymin-Ho*0.5,'h');            // 단면 중심선
+		if (Math.abs(cx)>1) rec.addLine(0,cx,xlev+Sy*0.03,cx,ymin-Ho*0.5,'h');
+		rec.addDimLinear(0,xmin,yT,xmax,yT,Ho*0.30,'B');
+		rec.addDimLinear(0,cx,yB,cx,yT,-Bo*0.75,'H');
+		rec.addDimLinear(0,Math.min(0,cx),xlev,Math.max(0,cx),xlev,0,'X',{la:(cx<0?-1:1)*18});
+		rec.addDimLinear(0,cx,slabTop,cx,yB,Bo*0.75,'Y');
+	});
+	var W = Math.round(box.getBoundingClientRect().width) || box.clientWidth || 470;
+	var H = box.clientHeight || Math.round(W*9/16);
+	box.innerHTML = window.RWSVG.renderSVG(rec, W, H);
+};
 })();
