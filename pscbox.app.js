@@ -50,6 +50,8 @@
   ];
   var OPEN_DEF = { shape: 'HEX', B: 800, H: 1000, CTTX: 150, CTTY: 200, CTBX: 150, CTBY: 150, X: 0, Y: 500 };
   var SEG_DEF = 20000, DIA_DEF = 2000;
+  //  3D 뷰 모듈(공개, 엔진 없음 — 서버 2D 결과를 교축 z 로 편다). jsDelivr 로 받는다.
+  var MOD3D = 'https://cdn.jsdelivr.net/gh/macroBIM/public@main/bim_pscboxdia_3d.js';
   var OP_SHAPES = [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']];
 
   // ── 상태 ──
@@ -160,10 +162,18 @@
       '  </div>' +
 
       '  <div class="draw-card">' +
-      '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR LAYOUT</span> <span class="draw-card-desc">단면 · 철근을 서버(숨은 엔진)에서 계산해 그린다 — 그림만 받는다</span></div></div>' +
-      '    <div class="draw-card-body">' +
-      '      <div id="stage2d"></div>' +
-      '      <div id="elevWrap" style="display:none;margin-top:10px;"><div style="font-size:12px;color:#64748b;margin:2px 0 4px;">교축방향 폐합철근 (입면)</div><div id="stage_elev"></div></div>' +
+      '    <div class="draw-card-header"><div><span class="draw-card-title">REBAR LAYOUT</span> <span class="draw-card-desc">단면 · 철근을 서버(숨은 엔진)에서 계산해 그린다 — 그림만 받는다</span></div>' +
+      '      <div class="engine-ctrls"><button type="button" class="engine-btn engine-btn-lite active" id="btnView3D" onclick="PXDIA.toggle3D()">&#9634; 3D</button></div>' +
+      '    </div>' +
+      '    <div class="draw-card-body" style="padding:0;">' +
+      '      <div class="phys-split">' +
+      '        <div class="phys-pane"><span class="phys-cap">2D &mdash; SECTION</span>' +
+      '          <div id="stage2d" style="width:100%;background:#fff;overflow:hidden;"></div></div>' +
+      '        <div class="phys-pane" id="pane3d"><span class="phys-cap">3D &mdash; DIAPHRAGM</span>' +
+      '          <div class="view3d-bar" id="view3dBar">' + view3dBarHTML() + '</div>' +
+      '          <div id="render3dContainer" style="width:100%;aspect-ratio:16/9;background:#41699b;overflow:hidden;cursor:grab;"></div></div>' +
+      '      </div>' +
+      '      <div id="elevWrap" style="display:none;padding:10px 14px;"><div style="font-size:12px;color:#64748b;margin:2px 0 4px;">교축방향 폐합철근 (입면)</div><div id="stage_elev"></div></div>' +
       '    </div>' +
       '  </div>' +
 
@@ -213,12 +223,44 @@
 
   // ── 핸들러 ────────────────────────────────────────────────────────────────
   var PX = {
+    _view3D: 'iso', _proj3D: 'persp', _is3D: true,
     mount: function (rootId) {
       var root = el(rootId); if (!root) return;
       root.innerHTML = mountHTML();
       initStages();
       renderRebarTable();
+      this._mark3DBar();
       this.redraw();
+    },
+    //  3D 켜고/끄기 — 끄면 2D 가 한 줄을 다 쓴다
+    toggle3D: function () {
+      var pane = el('pane3d'), btn = el('btnView3D'); if (!pane) return;
+      var on = pane.style.display === 'none';
+      pane.style.display = on ? '' : 'none';
+      if (btn) btn.classList.toggle('active', on);
+      this._is3D = on;
+      if (on && _last) draw3D(_last);
+    },
+    //  시점 : 장면이 서 있으면 카메라만 옮기고, 아니면 다시 그린다
+    view3D: function (name) {
+      this._view3D = name; this._mark3DBar();
+      var st = this._st3D();
+      if (st && typeof st.setView === 'function') { st.setView(name); return; }
+      if (_last) draw3D(_last);
+    },
+    //  투영 : persp(투시) · ortho(정사). 보던 각도는 유지
+    proj3D: function (kind) {
+      this._proj3D = (kind === 'ortho') ? 'ortho' : 'persp'; this._mark3DBar();
+      var st = this._st3D();
+      if (st && typeof st.setProjection === 'function') { st.setProjection(this._proj3D); return; }
+      if (_last) draw3D(_last);
+    },
+    _st3D: function () { var h = el('render3dContainer'); return (h && h._pscdia3d) || null; },
+    _mark3DBar: function () {
+      var bar = el('view3dBar'); if (!bar) return;
+      var self = this;
+      Array.prototype.forEach.call(bar.querySelectorAll('[data-v]'), function (b) { b.classList.toggle('active', b.getAttribute('data-v') === self._view3D); });
+      Array.prototype.forEach.call(bar.querySelectorAll('[data-p]'), function (b) { b.classList.toggle('active', b.getAttribute('data-p') === self._proj3D); });
     },
     onCellType: function () { this.redraw(); },
     onOpConsider: function () {
@@ -315,6 +357,7 @@
         draw(data);
         drawGuide(data);
         drawOpening(data);
+        draw3D(data);
         fillLog(data.log);
         var nb = (data.bars2d || []).length, nl = (data.lbars2d || []).length, nh = (data.hoops || []).length, nm = (data.mesh2d || []).length;
         setStatus('완료 — trebar ' + nb + ' · lrebar ' + nl + ' · 폐합 ' + nh + ' · 면철근망 ' + nm + (data.stub ? ' (stub)' : ''));
@@ -375,6 +418,40 @@
       if (_last) { draw(_last); drawOpening(_last); }
     });
   }
+  // ── 3D 뷰 (오른쪽 칸) ───────────────────────────────────────────────────────
+  //  시점·투영 버튼 바 (원본 bim_pscbox_diaphragm_test 의 view3d-bar 와 동일)
+  function view3dBarHTML() {
+    var vb = ['iso', 'front', 'back', 'top', 'bottom', 'left', 'right'].map(function (v) {
+      return '<button type="button" data-v="' + v + '" onclick="PXDIA.view3D(\'' + v + '\')">' + v.toUpperCase() + '</button>';
+    }).join('');
+    var pb = [['persp', 'PERSP'], ['ortho', 'ORTHO']].map(function (p) {
+      return '<button type="button" data-p="' + p[0] + '" onclick="PXDIA.proj3D(\'' + p[0] + '\')">' + p[1] + '</button>';
+    }).join('');
+    return vb + '<span class="view3d-sep"></span>' + pb;
+  }
+  //  서버 2D 결과 → 3D 모듈 cfg (모듈이 교축 z 로 편다). 엔진 비밀 없음.
+  function collect3D(data) {
+    var sec = data.section || {};
+    var tre = (data.bars2d || []).map(function (b) { return { id: b.id, dia: b.dia, pts: b.pts }; });
+    var lre = [];
+    (data.lbars2d || []).forEach(function (b) { (b.dots || []).forEach(function (p) { lre.push({ id: b.id, dia: b.dia, x: p[0], y: p[1] }); }); });
+    var hoops = (data.hoops || []).map(function (h) { return { plane: h.plane, at: h.at, pts: h.pts, dia: h.dia }; });
+    return {
+      outer: sec.outer || [], cells: sec.cells || [], openings: sec.openings || [],
+      segLen: SEG_DEF, diaT: DIA_DEF, treCtc: 150,
+      trebar: tre, lrebar: lre, hoops: hoops
+    };
+  }
+  function draw3D(data) {
+    if (!data) return;
+    var pane = el('pane3d'); if (pane && pane.style.display === 'none') return;
+    if (!el('render3dContainer')) return;
+    if (!window.RWSVG || typeof window.RWSVG.render3d !== 'function') return;
+    var cfg = collect3D(data);
+    cfg.view = PX._view3D; cfg.proj = PX._proj3D;
+    try { window.RWSVG.render3d('render3dContainer', 'render_pscboxdia_3d', MOD3D, [cfg]); } catch (e) {}
+  }
+
   //  입력칸 → 개구부 입력 객체 (구멍상세·단면내위치 그림이 쓴다)
   function readOpeningInput() {
     var c = el('opConsider');
