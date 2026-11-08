@@ -57,7 +57,7 @@
 
   // ── 상태 ──
   var stage, layer, barLayer, elevStage, elevLayer, animTimer = null, elevTimer = null;
-  var _excelData = null, _last = null, _busy = false;
+  var _excelData = null, _last = null, _busy = false, _queued = null;
 
   function el(id) { return document.getElementById(id); }
   function val(id) { var e = el(id); return e ? e.value : ''; }
@@ -348,13 +348,19 @@
   // ── 서버 호출 ──────────────────────────────────────────────────────────────
   function setStatus(msg, bad) { var s = el('pxStatus'); if (s) { s.textContent = msg; s.style.color = bad ? '#dc2626' : '#64748b'; } }
   function solve(rows) {
-    if (_busy) return; _busy = true;
+    //  진행 중이면 요청을 버리지 않고 "최신 입력"만 대기열에 둔다 — 끝나면 그걸로 다시 그린다.
+    //  (엑셀 로드가 초기 계산과 겹치면 옛 버전은 if(_busy)return 으로 버려져 그림이 안 바뀌었다.)
+    if (_busy) { _queued = rows; return; }
+    _busy = true;
     setStatus('서버에서 계산 중…');
+    var done = function () {
+      _busy = false;
+      if (_queued) { var q = _queued; _queued = null; solve(q); }   // 대기 중 최신 입력으로 재계산
+    };
     fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet: rows }) })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        _busy = false;
-        if (!data || !data.ok) { setStatus((data && data.error) || '계산 실패', true); return; }
+        if (!data || !data.ok) { setStatus((data && data.error) || '계산 실패', true); done(); return; }
         draw(data);
         drawGuide(data);
         drawOpening(data);
@@ -362,8 +368,9 @@
         fillLog(data.log);
         var nb = (data.bars2d || []).length, nl = (data.lbars2d || []).length, nh = (data.hoops || []).length, nm = (data.mesh2d || []).length;
         setStatus('완료 — trebar ' + nb + ' · lrebar ' + nl + ' · 폐합 ' + nh + ' · 면철근망 ' + nm + (data.stub ? ' (stub)' : ''));
+        done();
       })
-      .catch(function (e) { _busy = false; setStatus('서버 연결 실패: ' + e.message, true); });
+      .catch(function (e) { setStatus('서버 연결 실패: ' + e.message, true); done(); });
   }
   function fillLog(lines) { var p = el('pxLoadLog'); if (p) p.innerHTML = (lines || []).map(function (l) { return '<div>' + esc(l) + '</div>'; }).join(''); }
 

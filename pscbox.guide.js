@@ -10,6 +10,7 @@ window.pscDrawGuide = function(sdivid, ap, GEO){
 
 
 	var o = GEO;   // 서버(/config 숨은 엔진)가 계산해 준 기하
+	if (!o || !o.points || !o.points.length) return;   // geo 가 비면 그리지 않는다 (옛 그림 유지 · 크래시 방지)
 	var P = {};
 	o.points.forEach(function(op){ P[op.name] = op[op.name]; });
 
