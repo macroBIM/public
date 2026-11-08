@@ -58,6 +58,9 @@
   // ── 상태 ──
   var stage, layer, barLayer, elevStage, elevLayer, animTimer = null, elevTimer = null;
   var _excelData = null, _last = null, _busy = false, _queued = null;
+  //  2D 뷰(줌/팬) — 스테이지를 스케일하지 않고 **다시 그린다**. 그래서 선 두께가
+  //  같이 커지지 않고(외곽선은 크리스프 2px 유지) 간격·철근만 커진다 = CAD 식 줌.
+  var _view = { k: 1, dx: 0, dy: 0 };
 
   function el(id) { return document.getElementById(id); }
   function val(id) { var e = el(id); return e ? e.value : ''; }
@@ -411,23 +414,46 @@
     st.width(w); st.height(h);
   }
   //  휠 줌 + 드래그 팬 + 더블클릭 리셋 (원본 철근도와 같은 조작). 선·점 두께는 stage 배율로 같이 커진다.
+  //  2D 철근도 줌/팬 — **스테이지를 스케일하지 않고 다시 그린다**(_view). 그래서
+  //  외곽선·격자는 크리스프 2px/1px 를 유지하고, 간격·철근(지름비례)만 커진다.
+  //  (stage.scale 로 하면 선 두께까지 같이 커져 「이미지 확대」처럼 보인다.)
+  function attachZoomPan2D(st) {
+    if (!st || st._zp2) return; st._zp2 = true;
+    var cont = st.container(); try { cont.style.cursor = 'grab'; } catch (e) {}
+    var panning = false, lastX = 0, lastY = 0, raf = 0;
+    function redraw() { if (_last) draw(_last, true); }   // noAnim: 줌/팬은 최종상태를 다시 그릴 뿐
+    function schedule() { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; redraw(); }); }
+    cont.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var rect = cont.getBoundingClientRect();
+      var px = e.clientX - rect.left, py = e.clientY - rect.top;
+      var W = st.width(), H = st.height();
+      var r = e.deltaY > 0 ? 1 / 1.12 : 1.12;
+      var nk = Math.max(0.4, Math.min(80, _view.k * r)); r = nk / _view.k;
+      //  포인터 아래 모형점이 제자리에 있도록 팬을 보정 (W/2·H/2 가 fitView 의 중심)
+      _view.dx = px - W / 2 - (px - W / 2 - _view.dx) * r;
+      _view.dy = py - H / 2 - (py - H / 2 - _view.dy) * r;
+      _view.k = nk;
+      redraw();
+    }, { passive: false });
+    cont.addEventListener('mousedown', function (e) { panning = true; lastX = e.clientX; lastY = e.clientY; try { cont.style.cursor = 'grabbing'; } catch (x) {} });
+    window.addEventListener('mousemove', function (e) { if (!panning) return; _view.dx += (e.clientX - lastX); _view.dy += (e.clientY - lastY); lastX = e.clientX; lastY = e.clientY; schedule(); });
+    window.addEventListener('mouseup', function () { if (panning) { panning = false; try { cont.style.cursor = 'grab'; } catch (x) {} } });
+    cont.addEventListener('dblclick', function () { _view.k = 1; _view.dx = 0; _view.dy = 0; redraw(); });
+  }
+  //  입면(elev) 스테이지 — 보조라 예전 방식(스테이지 스케일) 그대로.
   function attachStageZoomPan(st) {
     if (!st || st._zp) return; st._zp = true;
     st.draggable(true);
     try { st.container().style.cursor = 'grab'; } catch (e) {}
-    st.on('mousedown touchstart', function () { try { st.container().style.cursor = 'grabbing'; } catch (e) {} });
-    st.on('mouseup touchend', function () { try { st.container().style.cursor = 'grab'; } catch (e) {} });
     st.on('wheel', function (e) {
       e.evt.preventDefault();
       var old = st.scaleX() || 1;
       var ptr = st.getPointerPosition();
-      if (!ptr) { var rect = st.container().getBoundingClientRect(); ptr = { x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top }; }   // Konva 포인터가 없으면 이벤트 좌표로
+      if (!ptr) { var rect = st.container().getBoundingClientRect(); ptr = { x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top }; }
       var mp = { x: (ptr.x - st.x()) / old, y: (ptr.y - st.y()) / old };
-      var ns = e.evt.deltaY > 0 ? old / 1.12 : old * 1.12;
-      ns = Math.max(0.4, Math.min(80, ns));
-      st.scale({ x: ns, y: ns });
-      st.position({ x: ptr.x - mp.x * ns, y: ptr.y - mp.y * ns });
-      st.batchDraw();
+      var ns = Math.max(0.4, Math.min(80, e.evt.deltaY > 0 ? old / 1.12 : old * 1.12));
+      st.scale({ x: ns, y: ns }); st.position({ x: ptr.x - mp.x * ns, y: ptr.y - mp.y * ns }); st.batchDraw();
     });
     st.on('dblclick dbltap', function () { st.scale({ x: 1, y: 1 }); st.position({ x: 0, y: 0 }); st.batchDraw(); });
   }
@@ -437,7 +463,7 @@
     layer = new Konva.Layer(); barLayer = new Konva.Layer();
     stage.add(layer); stage.add(barLayer);
     sizeStage169(host, stage);
-    attachStageZoomPan(stage);
+    attachZoomPan2D(stage);
     var ehost = el('stage_elev');
     if (ehost) { elevStage = new Konva.Stage({ container: 'stage_elev', width: host.clientWidth || 600, height: 220 }); elevLayer = new Konva.Layer(); elevStage.add(elevLayer); attachStageZoomPan(elevStage); }
     var fi = el('excelFileInput'); if (fi) fi.addEventListener('change', function (e) { if (e.target.files[0]) onFile(e.target.files[0]); });
@@ -515,9 +541,11 @@
     var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
     pts.forEach(function (p) { if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0]; if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1]; });
     var W = stage.width(), H = stage.height(), pad = 28;
-    var s = Math.min((W - 2 * pad) / Math.max(1, maxx - minx), (H - 2 * pad) / Math.max(1, maxy - miny));
+    var s0 = Math.min((W - 2 * pad) / Math.max(1, maxx - minx), (H - 2 * pad) / Math.max(1, maxy - miny));
+    var s = s0 * _view.k;   // 줌은 배율로 들어가 **다시 그린다** (스테이지 스케일 아님)
     var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
-    var T = function (p) { return [W / 2 + (p[0] - cx) * s, H / 2 - (p[1] - cy) * s]; };
+    var dx = _view.dx, dy = _view.dy;
+    var T = function (p) { return [W / 2 + (p[0] - cx) * s + dx, H / 2 - (p[1] - cy) * s + dy]; };
     T.s = s; return T;
   }
   function polyPoints(pts, T) { var a = []; pts.forEach(function (p) { var q = T(p); a.push(q[0], q[1]); }); return a; }
@@ -536,10 +564,10 @@
     for (var x = x0; x <= x1 + 0.5; x += step) { var a = T([x, y0]), b = T([x, y1]); layer.add(new Konva.Line({ points: [a[0], a[1], b[0], b[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
     for (var y = y0; y <= y1 + 0.5; y += step) { var c = T([x0, y]), d = T([x1, y]); layer.add(new Konva.Line({ points: [c[0], c[1], d[0], d[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
   }
-  function draw(data) {
+  function draw(data, noAnim) {
+    if (data !== _last) { _view.k = 1; _view.dx = 0; _view.dy = 0; }   // 새 계산이면 뷰 리셋 (줌/팬 재그리기는 같은 _last 라 유지)
     _last = data; stopAnim();
     if (!layer) return;
-    if (stage) { stage.scale({ x: 1, y: 1 }); stage.position({ x: 0, y: 0 }); }   // 새 계산은 맞춰 보이게 (줌 리셋)
     layer.destroyChildren(); barLayer.destroyChildren();
     var sec = data.section || {}, all = [];
     (sec.outer || []).forEach(function (p) { all.push(p); });
@@ -561,7 +589,7 @@
     });
     (data.mesh2d || []).forEach(function (b) { layer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#ea580c', strokeWidth: 1.4, lineCap: 'round', opacity: 0.9 })); });
     layer.draw();
-    if (data.anim && data.anim.length) playAnim(data, T);
+    if (!noAnim && data.anim && data.anim.length) playAnim(data, T);
     else { drawBarsFinal(data.bars2d || [], T); drawTiesFinal(data.ties2d || [], T); drawLbarsFinal(data.lbars2d || [], T); barLayer.draw(); }
     drawElev(data);
   }
