@@ -346,22 +346,31 @@
   }
 
   // ════════════════ 그리기 (서버 좌표만 — 알고리즘 없음) ════════════════════
+  //  그림칸은 폭에 맞춰 16:9 비율을 유지한다 (원본 renderView 의 aspect 와 같은 규칙).
+  var AR169 = 16 / 9;
+  function sizeStage169(hostEl, st) {
+    if (!hostEl || !st) return;
+    var w = hostEl.clientWidth || 600, h = Math.max(180, Math.round(w / AR169));
+    hostEl.style.height = h + 'px';
+    st.width(w); st.height(h);
+  }
   function initStages() {
     var host = el('stage2d'); if (!host) return;
     stage = new Konva.Stage({ container: 'stage2d', width: host.clientWidth || 600, height: 420 });
     layer = new Konva.Layer(); barLayer = new Konva.Layer();
     stage.add(layer); stage.add(barLayer);
+    sizeStage169(host, stage);
     var ehost = el('stage_elev');
     if (ehost) { elevStage = new Konva.Stage({ container: 'stage_elev', width: host.clientWidth || 600, height: 220 }); elevLayer = new Konva.Layer(); elevStage.add(elevLayer); }
     var ohost = el('stage_open');
-    if (ohost) { openStage = new Konva.Stage({ container: 'stage_open', width: ohost.clientWidth || 400, height: 300 }); openLayer = new Konva.Layer(); openStage.add(openLayer); }
+    if (ohost) { openStage = new Konva.Stage({ container: 'stage_open', width: ohost.clientWidth || 400, height: 300 }); openLayer = new Konva.Layer(); openStage.add(openLayer); sizeStage169(ohost, openStage); }
     var fi = el('excelFileInput'); if (fi) fi.addEventListener('change', function (e) { if (e.target.files[0]) onFile(e.target.files[0]); });
     window.addEventListener('resize', function () {
       if (!stage || !host) return;
-      stage.width(host.clientWidth || 600);
+      sizeStage169(host, stage);
       if (elevStage) elevStage.width(host.clientWidth || 600);
-      if (openStage && ohost) openStage.width(ohost.clientWidth || 400);
-      if (_last) draw(_last);
+      sizeStage169(ohost, openStage);
+      if (_last) { draw(_last); drawOpening(_last); }
     });
   }
   //  Opening 그림 — 단면 외곽(옅게) + 개구부(강조) 를 제 캔버스에 맞춰
