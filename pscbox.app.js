@@ -562,7 +562,7 @@
     (data.mesh2d || []).forEach(function (b) { layer.add(new Konva.Line({ points: polyPoints(b.pts || [], T), stroke: '#ea580c', strokeWidth: 1.4, lineCap: 'round', opacity: 0.9 })); });
     layer.draw();
     if (data.anim && data.anim.length) playAnim(data, T);
-    else { drawBarsFinal(data.bars2d || [], T); drawLbarsFinal(data.lbars2d || [], T); barLayer.draw(); }
+    else { drawBarsFinal(data.bars2d || [], T); drawTiesFinal(data.ties2d || [], T); drawLbarsFinal(data.lbars2d || [], T); barLayer.draw(); }
     drawElev(data);
   }
   //  철근 스타일 — 원본과 동일 : 실제 지름(mm) × 화면배율 로 선 두께, 그 위에 #FF3D00 글로우.
@@ -574,6 +574,8 @@
     barLayer.add(new Konva.Line({ points: pts, stroke: core, strokeWidth: w, lineCap: 'round', lineJoin: 'round' }));                                  // 심선
   }
   function drawBarsFinal(bars2d, T) { bars2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, '#8A2BE2', 0.22); }); }
+  //  srebar 갈고리(ㄷ·∩) — 스터럽. 횡철근과 같은 지름비례+글로우 스타일.
+  function drawTiesFinal(ties2d, T) { ties2d.forEach(function (b) { addBar(polyPoints(b.pts || [], T), b.dia, T, '#8A2BE2', 0.22); }); }
   function drawLbarsFinal(lbars2d, T) {
     lbars2d.forEach(function (b) {
       var r = Math.max(1.2, T.s * (b.dia || 13) / 2);
@@ -602,7 +604,8 @@
           else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, '#8A2BE2', 0.22); }
         }
       });
-      //  lrebar(금색 점)는 이제 JLong 이 바로 최종 자리로 준다(anim 없음) — 매 프레임 같이 그려 유지한다.
+      //  lrebar(금색 점)·ties(갈고리)는 이제 바로 최종 자리로 온다(anim 없음) — 매 프레임 같이 그려 유지한다.
+      drawTiesFinal(data.ties2d || [], T);
       drawLbarsFinal(data.lbars2d || [], T);
       barLayer.draw(); tick += step;
       if (tick > maxTick + step) stopAnim();
