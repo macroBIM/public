@@ -602,6 +602,8 @@
           else { var bt = finalT[a.id]; if (bt) addBar(polyPoints(bt.pts || [], T), bt.dia, T, '#8A2BE2', 0.22); }
         }
       });
+      //  lrebar(금색 점)는 이제 JLong 이 바로 최종 자리로 준다(anim 없음) — 매 프레임 같이 그려 유지한다.
+      drawLbarsFinal(data.lbars2d || [], T);
       barLayer.draw(); tick += step;
       if (tick > maxTick + step) stopAnim();
     }
