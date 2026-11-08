@@ -546,23 +546,36 @@
     var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
     var dx = _view.dx, dy = _view.dy;
     var T = function (p) { return [W / 2 + (p[0] - cx) * s + dx, H / 2 - (p[1] - cy) * s + dy]; };
-    T.s = s; return T;
+    T.s = s; T.W = W; T.H = H;
+    //  화면좌표 → 모형좌표 (격자가 보이는 영역 전체를 채우도록)
+    T.inv = function (sx, sy) { return [cx + (sx - W / 2 - dx) / s, cy - (sy - H / 2 - dy) / s]; };
+    return T;
   }
   function polyPoints(pts, T) { var a = []; pts.forEach(function (p) { var q = T(p); a.push(q[0], q[1]); }); return a; }
   function stopAnim() { if (animTimer) { clearInterval(animTimer); animTimer = null; } }
 
-  //  옅은 격자 — 원본 격벽처럼 파란 바탕 위에 모형좌표 기준 1 m 간격 선.
-  function drawGrid(all, T) {
-    if (!all || !all.length) return;
-    var minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
-    all.forEach(function (p) { if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0]; if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1]; });
-    if (!isFinite(minx)) return;
+  //  격자 — 원본처럼 **보이는 화면 전체**를 채운다 (내용 상자만이 아니라). 원점 십자는 밝게.
+  function drawGrid(T) {
+    if (!T || !T.inv) return;
+    var W = T.W, H = T.H;
+    //  화면 네 귀퉁이를 모형좌표로 되돌려 보이는 영역을 구한다
+    var c0 = T.inv(0, 0), c1 = T.inv(W, H);
+    var minx = Math.min(c0[0], c1[0]), maxx = Math.max(c0[0], c1[0]);
+    var miny = Math.min(c0[1], c1[1]), maxy = Math.max(c0[1], c1[1]);
     var span = Math.max(maxx - minx, maxy - miny), step = 1000;
-    while (span / step > 40) step *= 2;   // 선이 너무 촘촘하지 않게
+    while (span / step > 30) step *= 2;                 // 너무 촘촘하지 않게
+    while (span / step < 8 && step > 125) step /= 2;    // 확대하면 더 촘촘하게
     var x0 = Math.floor(minx / step) * step, x1 = Math.ceil(maxx / step) * step;
     var y0 = Math.floor(miny / step) * step, y1 = Math.ceil(maxy / step) * step;
-    for (var x = x0; x <= x1 + 0.5; x += step) { var a = T([x, y0]), b = T([x, y1]); layer.add(new Konva.Line({ points: [a[0], a[1], b[0], b[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
-    for (var y = y0; y <= y1 + 0.5; y += step) { var c = T([x0, y]), d = T([x1, y]); layer.add(new Konva.Line({ points: [c[0], c[1], d[0], d[1]], stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 })); }
+    var fine = 'rgba(255,255,255,0.10)', axis = 'rgba(255,255,255,0.34)';
+    for (var x = x0; x <= x1 + 0.5; x += step) {
+      var a = T([x, y0]), b = T([x, y1]);
+      layer.add(new Konva.Line({ points: [a[0], a[1], b[0], b[1]], stroke: Math.abs(x) < 0.5 ? axis : fine, strokeWidth: 1 }));
+    }
+    for (var y = y0; y <= y1 + 0.5; y += step) {
+      var c = T([x0, y]), d = T([x1, y]);
+      layer.add(new Konva.Line({ points: [c[0], c[1], d[0], d[1]], stroke: Math.abs(y) < 0.5 ? axis : fine, strokeWidth: 1 }));
+    }
   }
   function draw(data, noAnim) {
     if (data !== _last) { _view.k = 1; _view.dx = 0; _view.dy = 0; }   // 새 계산이면 뷰 리셋 (줌/팬 재그리기는 같은 _last 라 유지)
@@ -578,7 +591,7 @@
     (data.anim || []).forEach(function (a) { (a.frames || []).forEach(function (fr) { fr.forEach(function (s) { all.push([s[0], s[1]]); if (s.length >= 4) all.push([s[2], s[3]]); }); }); });
     if (!all.length) { layer.draw(); barLayer.draw(); drawElev(data); return; }
     var T = fitView(all);
-    drawGrid(all, T);   // 원본 격벽처럼 파란 바탕 위 옅은 격자
+    drawGrid(T);   // 보이는 화면 전체를 채우는 격자 + 원점 십자
     //  원본 격벽 2D 팔레트(#41699b 바탕) : 외곽·개구부 흰선, 덕트 분홍(#FF61E6)
     if (sec.outer) layer.add(new Konva.Line({ points: polyPoints(sec.outer, T), stroke: '#ffffff', strokeWidth: 2, closed: true, lineJoin: 'round' }));
     (sec.cells || []).forEach(function (c) { layer.add(new Konva.Line({ points: polyPoints(c, T), stroke: 'rgba(255,255,255,0.45)', strokeWidth: 1, closed: true })); });
