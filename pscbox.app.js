@@ -53,7 +53,7 @@
   var OP_SHAPES = [['RECT', 'Rectangle'], ['HEX', 'Hexagon'], ['OCT', 'Octagon']];
 
   // ── 상태 ──
-  var stage, layer, barLayer, elevStage, elevLayer, animTimer = null, elevTimer = null;
+  var stage, layer, barLayer, elevStage, elevLayer, openStage, openLayer, animTimer = null, elevTimer = null;
   var _excelData = null, _last = null, _busy = false;
 
   function el(id) { return document.getElementById(id); }
